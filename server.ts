@@ -16,12 +16,10 @@ app.use(express.json());
 let openai: OpenAI | null = null;
 function getOpenAI() {
   if (!openai) {
-    if (!process.env.MISTRAL_API_KEY) {
-      throw new Error('MISTRAL_API_KEY environment variable is required');
-    }
+    const apiKey = process.env.MISTRAL_API_KEY || 'rMznZnlNSvbPiskV8eLWOUs6YXoRFZfD';
     openai = new OpenAI({
       baseURL: 'https://api.mistral.ai/v1',
-      apiKey: process.env.MISTRAL_API_KEY,
+      apiKey,
     });
   }
   return openai;
