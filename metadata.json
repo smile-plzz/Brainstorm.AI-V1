@@ -1,0 +1,6 @@
+{
+  "name": "Ideation Room",
+  "description": "Multi-agent brainstorming chat powered by OpenRouter.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
