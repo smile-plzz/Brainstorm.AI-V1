@@ -4,7 +4,10 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Send, Users, Sparkles, User, BrainCircuit, Wrench, Heart, Download, RefreshCcw, Settings, Plus, X } from 'lucide-react';
+import { 
+  Send, Users, Sparkles, User, BrainCircuit, Wrench, Heart, Download, 
+  RefreshCcw, Settings, Plus, X, Check, Trash2, MessageSquare, Zap, Sliders, Shield, Compass, Lightbulb, PlusCircle 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 
@@ -25,39 +28,77 @@ interface Room {
   createdAt: number;
 }
 
-// Map role IDs to their display configs
+interface CharacterConfig {
+  display_name: string;
+  model: string;
+  system_prompt: string;
+  temperature: number;
+  color?: string;
+  iconType?: string;
+}
+
+// Built-in role UI configurations
 const ROLE_UI: Record<string, { name: string, color: string, icon: any }> = {
-  user: { name: 'You', color: 'bg-blue-500', icon: User },
-  system: { name: 'System', color: 'bg-gray-500', icon: Sparkles },
-  strategist: { name: 'The Strategist', color: 'bg-emerald-500', icon: BrainCircuit },
-  skeptic: { name: 'The Skeptical CFO', color: 'bg-rose-500', icon: Users },
-  creative: { name: 'The Creative', color: 'bg-purple-500', icon: Sparkles },
-  executor: { name: 'The Executor', color: 'bg-amber-500', icon: BrainCircuit },
-  technical_architect: { name: 'The Tech Architect', color: 'bg-indigo-500', icon: Wrench },
-  user_advocate: { name: 'The User Advocate', color: 'bg-teal-500', icon: Heart }
+  user: { name: 'You', color: 'bg-blue-600', icon: User },
+  system: { name: 'System', color: 'bg-neutral-500', icon: Sparkles },
+  strategist: { name: 'The Strategist', color: 'bg-emerald-600', icon: BrainCircuit },
+  skeptic: { name: 'The Skeptical CFO', color: 'bg-rose-600', icon: Shield },
+  creative: { name: 'The Creative', color: 'bg-purple-600', icon: Lightbulb },
+  executor: { name: 'The Executor', color: 'bg-amber-600', icon: Compass },
+  technical_architect: { name: 'The Tech Architect', color: 'bg-indigo-600', icon: Wrench },
+  user_advocate: { name: 'The User Advocate', color: 'bg-teal-600', icon: Heart }
 };
 
+const COLOR_OPTIONS = [
+  { name: 'Indigo', value: 'bg-indigo-600', border: 'border-indigo-200', bgLight: 'bg-indigo-50/50' },
+  { name: 'Emerald', value: 'bg-emerald-600', border: 'border-emerald-200', bgLight: 'bg-emerald-50/50' },
+  { name: 'Purple', value: 'bg-purple-600', border: 'border-purple-200', bgLight: 'bg-purple-50/50' },
+  { name: 'Rose', value: 'bg-rose-600', border: 'border-rose-200', bgLight: 'bg-rose-50/50' },
+  { name: 'Amber', value: 'bg-amber-600', border: 'border-amber-200', bgLight: 'bg-amber-50/50' },
+  { name: 'Cyan', value: 'bg-cyan-600', border: 'border-cyan-200', bgLight: 'bg-cyan-50/50' },
+  { name: 'Teal', value: 'bg-teal-600', border: 'border-teal-200', bgLight: 'bg-teal-50/50' },
+  { name: 'Violet', value: 'bg-violet-600', border: 'border-violet-200', bgLight: 'bg-violet-50/50' }
+];
+
 const PRESET_SCENES = [
-  { name: 'Startup Pitch', roles: ['strategist', 'skeptic', 'creative'], prompt: "Help me prepare my startup pitch." },
-  { name: 'Architecture Review', roles: ['technical_architect', 'executor', 'skeptic'], prompt: "Let's review the system architecture for a real-time app." },
-  { name: 'Product Launch', roles: ['strategist', 'creative', 'user_advocate'], prompt: "We need a launch strategy for our new consumer app." }
+  { name: 'Startup Pitch', roles: ['strategist', 'skeptic', 'creative'], prompt: "Help me refine my startup pitch and challenge my assumptions." },
+  { name: 'Architecture Review', roles: ['technical_architect', 'executor', 'skeptic'], prompt: "Let's review the technical design and scalability of a real-time web platform." },
+  { name: 'Product Launch', roles: ['strategist', 'creative', 'user_advocate'], prompt: "We need an integrated launch strategy and user onboarding plan for our new application." }
 ];
 
 export default function App() {
   const [roomId, setRoomId] = useState<string | null>(null);
-  const [room, setRoom] = useState<Room | null>(null);
+  const [, setRoom] = useState<Room | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [crossTalkLevel, setCrossTalkLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [streamingAgent, setStreamingAgent] = useState<{ roleId: string, displayName: string, text: string } | null>(null);
   
-  // New settings for roles
-  const [availableRoles, setAvailableRoles] = useState<Record<string, { display_name: string, model: string, system_prompt: string, temperature: number }>>({});
-  const [customRoles, setCustomRoles] = useState<Record<string, { display_name: string, model: string, system_prompt: string, temperature: number }>>({});
+  // Available & Custom Roles
+  const [availableRoles, setAvailableRoles] = useState<Record<string, CharacterConfig>>({});
+  const [customRoles, setCustomRoles] = useState<Record<string, CharacterConfig>>(() => {
+    try {
+      const saved = localStorage.getItem('brainstorm_custom_roles');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  
   const [activeRoster, setActiveRoster] = useState<string[]>([]);
   const [isManagePanelOpen, setIsManagePanelOpen] = useState(false);
-  const [newRole, setNewRole] = useState({ id: '', display_name: '', model: 'open-mixtral-8x22b', system_prompt: '', temperature: 0.7 });
+  const [isCreateCharacterModalOpen, setIsCreateCharacterModalOpen] = useState(false);
+  
+  // Custom Role Form State
+  const [newCharacter, setNewCharacter] = useState({
+    display_name: '',
+    system_prompt: '',
+    color: 'bg-indigo-600',
+    model: 'mistral-large-latest',
+    temperature: 0.7
+  });
+
   const [isGeneratingRoles, setIsGeneratingRoles] = useState(false);
   const [scenePrompt, setScenePrompt] = useState('');
   const [isAutopilot, setIsAutopilot] = useState(false);
@@ -67,6 +108,15 @@ export default function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Sync custom roles to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('brainstorm_custom_roles', JSON.stringify(customRoles));
+    } catch (err) {
+      console.error('Failed to persist custom roles', err);
+    }
+  }, [customRoles]);
 
   const handleCancel = () => {
     if (abortControllerRef.current) {
@@ -87,7 +137,6 @@ export default function App() {
     setStreamingAgent(null);
     setIsAutopilot(false);
     setMessages([]);
-    setActiveRoster(Object.keys(availableRoles));
     setRoom(null);
     setScenePrompt('');
     await initRoom();
@@ -104,27 +153,61 @@ export default function App() {
       });
       const data = await res.json();
       if (data.roles && Array.isArray(data.roles)) {
-        const newCustomRoles: any = {};
+        const newCustomRoles: Record<string, CharacterConfig> = {};
         const newRoster: string[] = [];
         data.roles.forEach((r: any) => {
-          newCustomRoles[r.id] = {
+          const charId = r.id || `custom_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          newCustomRoles[charId] = {
             display_name: r.display_name,
             model: r.model || 'mistral-large-latest',
             system_prompt: r.system_prompt,
-            temperature: r.temperature || 0.7
+            temperature: r.temperature || 0.7,
+            color: COLOR_OPTIONS[Math.floor(Math.random() * COLOR_OPTIONS.length)].value
           };
-          newRoster.push(r.id);
+          newRoster.push(charId);
         });
         setCustomRoles(prev => ({ ...prev, ...newCustomRoles }));
-        setActiveRoster(newRoster);
+        setActiveRoster(prev => Array.from(new Set([...prev, ...newRoster])));
         setScenePrompt('');
-        setIsManagePanelOpen(true);
       }
     } catch (err) {
       console.error(err);
     } finally {
       setIsGeneratingRoles(false);
     }
+  };
+
+  const handleCreateCustomCharacter = () => {
+    if (!newCharacter.display_name.trim() || !newCharacter.system_prompt.trim()) return;
+
+    const charId = `custom_${Date.now()}_${newCharacter.display_name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    const createdConfig: CharacterConfig = {
+      display_name: newCharacter.display_name.trim(),
+      system_prompt: newCharacter.system_prompt.trim(),
+      color: newCharacter.color,
+      model: newCharacter.model,
+      temperature: newCharacter.temperature
+    };
+
+    setCustomRoles(prev => ({ ...prev, [charId]: createdConfig }));
+    setActiveRoster(prev => [...prev, charId]);
+    setNewCharacter({
+      display_name: '',
+      system_prompt: '',
+      color: 'bg-indigo-600',
+      model: 'mistral-large-latest',
+      temperature: 0.7
+    });
+    setIsCreateCharacterModalOpen(false);
+  };
+
+  const handleDeleteCustomCharacter = (charId: string) => {
+    setCustomRoles(prev => {
+      const next = { ...prev };
+      delete next[charId];
+      return next;
+    });
+    setActiveRoster(prev => prev.filter(id => id !== charId));
   };
 
   const initRoom = async () => {
@@ -142,13 +225,14 @@ export default function App() {
       const res = await fetch('/api/roles');
       const data = await res.json();
       setAvailableRoles(data);
-      setActiveRoster(Object.keys(data));
+      if (activeRoster.length === 0) {
+        setActiveRoster(Object.keys(data));
+      }
     } catch (err) {
       console.error('Failed to fetch roles', err);
     }
   };
 
-  // Initialize room on mount
   useEffect(() => {
     initRoom();
     fetchRoles();
@@ -206,9 +290,8 @@ export default function App() {
 
         buffer += decoder.decode(value, { stream: true });
         
-        // Parse SSE
         const parts = buffer.split('\n\n');
-        buffer = parts.pop() || ''; // keep the last partial event in the buffer
+        buffer = parts.pop() || '';
 
         for (const part of parts) {
           const lines = part.split('\n');
@@ -232,7 +315,6 @@ export default function App() {
                 setStreamingAgent(null);
               }
               setMessages(prev => {
-                // Ensure no duplicate IDs
                 if (prev.find(m => m.id === data.id)) return prev;
                 return [...prev, data];
               });
@@ -290,9 +372,21 @@ export default function App() {
 
   const getRoleUI = (speaker: string) => {
     if (ROLE_UI[speaker]) return ROLE_UI[speaker];
-    if (customRoles[speaker]) return { name: customRoles[speaker].display_name, color: 'bg-indigo-600', icon: User };
-    if (availableRoles[speaker]) return { name: availableRoles[speaker].display_name, color: 'bg-gray-400', icon: BrainCircuit };
-    return { name: speaker, color: 'bg-gray-400', icon: User };
+    if (customRoles[speaker]) {
+      return { 
+        name: customRoles[speaker].display_name, 
+        color: customRoles[speaker].color || 'bg-indigo-600', 
+        icon: User 
+      };
+    }
+    if (availableRoles[speaker]) {
+      return { 
+        name: availableRoles[speaker].display_name, 
+        color: 'bg-neutral-600', 
+        icon: BrainCircuit 
+      };
+    }
+    return { name: speaker, color: 'bg-neutral-600', icon: User };
   };
 
   const exportTranscript = () => {
@@ -306,12 +400,20 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ideation-transcript-${new Date().toISOString().slice(0,10)}.md`;
+    a.download = `brainstorm-transcript-${new Date().toISOString().slice(0,10)}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
+  const toggleRoleSelection = (roleId: string) => {
+    setActiveRoster(prev => 
+      prev.includes(roleId) ? prev.filter(r => r !== roleId) : [...prev, roleId]
+    );
+  };
+
+  const allRoleKeys = [...Object.keys(availableRoles), ...Object.keys(customRoles)];
 
   const renderMessage = (msg: Message | { id: string, roomId: string, speaker: string, content: string }, isStreaming = false) => {
     const roleConfig = getRoleUI(msg.speaker);
@@ -322,43 +424,44 @@ export default function App() {
     return (
       <motion.div 
         key={msg.id}
-        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+        initial={{ opacity: 0, y: 8, scale: 0.99 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-6 group`}
+        transition={{ duration: 0.2 }}
+        className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-5 group`}
       >
-        <div className={`flex max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start gap-3`}>
+        <div className={`flex max-w-[88%] sm:max-w-[82%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start gap-3`}>
           
-          <div className={`flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white ${roleConfig.color} shadow-sm mt-1 ring-4 ring-white`}>
-            <Icon size={18} className="md:w-5 md:h-5" />
+          <div className={`flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-white ${roleConfig.color} shadow-sm mt-0.5`}>
+            <Icon size={18} />
           </div>
           
           <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-            <span className="text-xs text-gray-400 font-semibold mb-1.5 px-1 flex items-center gap-2 uppercase tracking-wide">
-              {roleConfig.name}
+            <div className="flex items-center gap-2 mb-1 px-1">
+              <span className="text-xs text-neutral-500 font-semibold uppercase tracking-wider">
+                {roleConfig.name}
+              </span>
               {isStreaming && (
-                <motion.span 
-                  animate={{ opacity: [0.3, 1, 0.3] }} 
-                  transition={{ repeat: Infinity, duration: 1.5 }}
-                  className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full" 
-                />
+                <span className="flex items-center gap-1 text-[11px] text-indigo-600 font-medium">
+                  <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-ping" />
+                  thinking...
+                </span>
               )}
-            </span>
+            </div>
+            
             <div 
-              className={`px-5 py-4 rounded-3xl ${
+              className={`px-5 py-3.5 rounded-2xl text-[14.5px] leading-relaxed transition-all ${
                 isUser 
-                  ? 'bg-blue-600 text-white rounded-tr-sm shadow-md' 
+                  ? 'bg-neutral-900 text-white rounded-tr-xs shadow-sm' 
                   : isSystem
-                    ? 'bg-gray-50 text-gray-500 italic rounded-tl-sm border border-gray-100'
-                    : 'bg-white text-gray-800 shadow-sm border border-gray-100 rounded-tl-sm prose prose-sm prose-slate max-w-none'
+                    ? 'bg-neutral-100 text-neutral-600 italic rounded-tl-xs border border-neutral-200/80'
+                    : 'bg-white text-neutral-800 shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-neutral-200/80 rounded-tl-xs prose prose-slate max-w-none'
               }`}
             >
-              <div className="text-[15px] leading-relaxed break-words">
-                {isUser ? (
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
-                ) : (
-                  <Markdown>{msg.content}</Markdown>
-                )}
-              </div>
+              {isUser ? (
+                <div className="whitespace-pre-wrap">{msg.content}</div>
+              ) : (
+                <Markdown>{msg.content}</Markdown>
+              )}
             </div>
           </div>
         </div>
@@ -367,120 +470,368 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 text-gray-900 font-sans selection:bg-blue-200">
+    <div className="flex flex-col h-screen bg-[#FAF9FB] text-neutral-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 py-4 px-6 flex items-center justify-between z-10 shadow-sm">
+      {/* Sleek Minimalist Glass Header */}
+      <header className="bg-white/90 backdrop-blur-md border-b border-neutral-200/80 py-3.5 px-4 sm:px-6 flex items-center justify-between z-20 sticky top-0 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg text-white">
-            <Users size={24} />
+          <div className="bg-neutral-900 p-2 rounded-xl text-white shadow-xs">
+            <BrainCircuit size={20} />
           </div>
           <div>
-            <h1 className="font-semibold text-lg tracking-tight">Ideation Room</h1>
-            <p className="text-xs text-gray-500 font-medium flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
-              {activeRoster.length ? `${activeRoster.length} agents ready` : 'No agents selected'}
+            <div className="flex items-center gap-2">
+              <h1 className="font-bold text-base sm:text-lg text-neutral-900 tracking-tight">Brainstorm Studio</h1>
+              <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200/60">
+                AI Panel
+              </span>
+            </div>
+            <p className="text-xs text-neutral-500 font-medium flex items-center gap-1.5 mt-0.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${activeRoster.length ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+              {activeRoster.length ? `${activeRoster.length} characters active` : 'No characters selected'}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <label htmlFor="crossTalk" className="text-sm text-gray-500 font-medium hidden sm:inline-block">Cross-talk:</label>
+
+        {/* Action Controls */}
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="hidden md:flex items-center gap-2">
+            <label htmlFor="crossTalk" className="text-xs text-neutral-500 font-medium">Cross-talk:</label>
             <select
               id="crossTalk"
               value={crossTalkLevel}
               onChange={(e) => setCrossTalkLevel(e.target.value as 'low' | 'medium' | 'high')}
-              className="text-sm bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              className="text-xs bg-neutral-100 hover:bg-neutral-200/60 border border-neutral-200/80 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 text-neutral-800 font-medium transition-colors"
               disabled={isProcessing}
             >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
+              <option value="low">Low Dynamics</option>
+              <option value="medium">Medium Dynamics</option>
+              <option value="high">High Dynamics</option>
             </select>
           </div>
-          
-          <div className="flex items-center gap-3 border-l border-gray-200 pl-3 sm:pl-4 flex-wrap">
-            <label className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-600 font-medium cursor-pointer select-none" title="Let agents brainstorm back and forth automatically">
+
+          <div className="hidden lg:flex items-center gap-3 border-l border-neutral-200/80 pl-4">
+            <label className="flex items-center gap-1.5 text-xs text-neutral-600 font-medium cursor-pointer select-none" title="Let agents converse back and forth automatically">
               <input 
                 type="checkbox" 
                 checked={isAutopilot} 
                 onChange={e => setIsAutopilot(e.target.checked)} 
-                className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                className="w-3.5 h-3.5 text-neutral-900 rounded border-neutral-300 focus:ring-neutral-800"
               />
               Autopilot
             </label>
-            <label className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-600 font-medium cursor-pointer select-none" title="Reduce agent-to-agent delay">
+            <label className="flex items-center gap-1.5 text-xs text-neutral-600 font-medium cursor-pointer select-none" title="Faster inter-agent responses">
               <input 
                 type="checkbox" 
                 checked={isFastMode} 
                 onChange={e => setIsFastMode(e.target.checked)} 
-                className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                className="w-3.5 h-3.5 text-neutral-900 rounded border-neutral-300 focus:ring-neutral-800"
               />
               Fast Mode
             </label>
-            <label className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-600 font-medium cursor-pointer select-none" title="Skip typing stream and show full text instantly">
+            <label className="flex items-center gap-1.5 text-xs text-neutral-600 font-medium cursor-pointer select-none" title="Show text instantly without stream delay">
               <input 
                 type="checkbox" 
                 checked={isSkipStream} 
                 onChange={e => setIsSkipStream(e.target.checked)} 
-                className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                className="w-3.5 h-3.5 text-neutral-900 rounded border-neutral-300 focus:ring-neutral-800"
               />
               Instant Text
             </label>
           </div>
 
-          <div className="flex items-center gap-2 border-l border-gray-200 pl-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 border-l border-neutral-200/80 pl-2 sm:pl-4">
             <button
               onClick={() => setIsManagePanelOpen(true)}
-              className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Manage Panel"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200/70 rounded-xl transition-colors border border-neutral-200/60"
+              title="Manage Characters & Roster"
             >
-              <Settings size={18} />
+              <Sliders size={14} />
+              <span className="hidden sm:inline">Characters</span>
             </button>
+
             <button
               onClick={exportTranscript}
               disabled={messages.length === 0}
-              className="text-gray-500 hover:text-gray-700 disabled:opacity-50 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Export as Markdown"
+              className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-xl disabled:opacity-30 transition-colors"
+              title="Export Transcript"
             >
-              <Download size={18} />
+              <Download size={16} />
             </button>
+
             <button
               onClick={startNewRoom}
               disabled={isProcessing}
-              className="text-gray-500 hover:text-gray-700 disabled:opacity-50 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Start New Room"
+              className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-xl disabled:opacity-30 transition-colors"
+              title="New Room"
             >
-              <RefreshCcw size={18} />
+              <RefreshCcw size={16} />
             </button>
+
             <button
               onClick={handleExit}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 rounded-lg text-xs font-semibold transition-colors border border-rose-100 shadow-sm"
-              title="Exit Brainstorm & Clear Session"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-semibold transition-colors border border-rose-100"
+              title="Clear Room & Reset"
             >
               <X size={14} />
-              <span>Exit</span>
+              <span className="hidden sm:inline">Exit</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Chat Log */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:px-8 space-y-2">
+      {/* Sub-header Active Character Strip when actively conversing */}
+      {messages.length > 0 && (
+        <div className="bg-white/60 border-b border-neutral-200/60 px-4 py-2 flex items-center justify-between overflow-x-auto text-xs gap-3">
+          <div className="flex items-center gap-2 overflow-x-auto py-0.5">
+            <span className="text-neutral-400 font-semibold uppercase tracking-wider text-[10px] flex-shrink-0">Active Panel:</span>
+            {activeRoster.map(id => {
+              const conf = getRoleUI(id);
+              return (
+                <button
+                  key={id}
+                  onClick={() => toggleRoleSelection(id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${conf.color} text-white shadow-2xs`}
+                >
+                  <span className="truncate max-w-[110px]">{conf.name}</span>
+                  <X size={12} className="hover:opacity-80" />
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setIsManagePanelOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200/80 text-neutral-700 rounded-full border border-neutral-200/80 font-medium transition-colors text-xs flex-shrink-0"
+            >
+              <Plus size={12} /> Add Persona
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Body & Initial Load Hub */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
         <div className="max-w-4xl mx-auto">
           
+          {/* INITIAL LOAD: CHARACTER SELECTION & CREATION HUB */}
           {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center mt-12 w-full max-w-2xl mx-auto space-y-6">
+            <div className="space-y-8 my-4">
               
-              {/* Custom Scene Generator */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 w-full">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                    <Sparkles size={24} />
+              {/* Hero Banner */}
+              <div className="text-center max-w-xl mx-auto space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold">
+                  <Sparkles size={14} /> Collaborative AI Brainstorming
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight">
+                  Choose Your Specialist Characters
+                </h2>
+                <p className="text-sm text-neutral-500">
+                  Select characters to join your brainstorming room, or build custom personas with unique perspectives.
+                </p>
+              </div>
+
+              {/* Character Controls Header */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider">
+                    Available Characters
+                  </h3>
+                  <span className="px-2 py-0.5 bg-neutral-200/70 text-neutral-700 rounded-full text-xs font-semibold">
+                    {activeRoster.length} / {allRoleKeys.length} Selected
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveRoster(allRoleKeys)}
+                    className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 px-3 py-1.5 bg-white border border-neutral-200/80 hover:bg-neutral-50 rounded-xl transition-colors shadow-2xs"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={() => setActiveRoster([])}
+                    className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 px-3 py-1.5 bg-white border border-neutral-200/80 hover:bg-neutral-50 rounded-xl transition-colors shadow-2xs"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => setIsCreateCharacterModalOpen(true)}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 px-3.5 py-1.5 rounded-xl transition-colors shadow-2xs"
+                  >
+                    <Plus size={14} /> Create Character
+                  </button>
+                </div>
+              </div>
+
+              {/* Character Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                
+                {/* Predefined Characters */}
+                {Object.entries(availableRoles).map(([id, role]) => {
+                  const isSelected = activeRoster.includes(id);
+                  const ui = getRoleUI(id);
+                  const Icon = ui.icon;
+
+                  return (
+                    <div
+                      key={id}
+                      onClick={() => toggleRoleSelection(id)}
+                      className={`relative p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between group ${
+                        isSelected 
+                          ? 'bg-white border-neutral-900 ring-2 ring-neutral-900/10 shadow-sm' 
+                          : 'bg-white/80 border-neutral-200/80 hover:border-neutral-300 hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white ${ui.color} shadow-2xs`}>
+                            <Icon size={18} />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-neutral-900 text-sm tracking-tight">{role.display_name}</h4>
+                            <span className="text-[11px] font-mono text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-md">
+                              {role.model}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                          isSelected ? 'bg-neutral-900 text-white' : 'border border-neutral-300 group-hover:border-neutral-400'
+                        }`}>
+                          {isSelected && <Check size={12} strokeWidth={3} />}
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-neutral-500 mt-3 line-clamp-2 leading-relaxed font-normal">
+                        {role.system_prompt}
+                      </p>
+                    </div>
+                  );
+                })}
+
+                {/* Custom User Characters */}
+                {Object.entries(customRoles).map(([id, role]) => {
+                  const isSelected = activeRoster.includes(id);
+                  const ui = getRoleUI(id);
+                  const Icon = ui.icon;
+
+                  return (
+                    <div
+                      key={id}
+                      onClick={() => toggleRoleSelection(id)}
+                      className={`relative p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between group ${
+                        isSelected 
+                          ? 'bg-white border-indigo-600 ring-2 ring-indigo-500/10 shadow-sm' 
+                          : 'bg-white/80 border-neutral-200/80 hover:border-neutral-300 hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white ${ui.color} shadow-2xs`}>
+                            <Icon size={18} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="font-bold text-neutral-900 text-sm tracking-tight">{role.display_name}</h4>
+                              <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded-full border border-indigo-100">
+                                Custom
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-mono text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-md">
+                              {role.model}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCustomCharacter(id);
+                            }}
+                            className="text-neutral-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Delete Character"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                            isSelected ? 'bg-indigo-600 text-white' : 'border border-neutral-300 group-hover:border-neutral-400'
+                          }`}>
+                            {isSelected && <Check size={12} strokeWidth={3} />}
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-neutral-500 mt-3 line-clamp-2 leading-relaxed font-normal">
+                        {role.system_prompt}
+                      </p>
+                    </div>
+                  );
+                })}
+
+                {/* Create Character Trigger Card */}
+                <div
+                  onClick={() => setIsCreateCharacterModalOpen(true)}
+                  className="p-5 rounded-2xl border-2 border-dashed border-neutral-200 hover:border-neutral-400 bg-white/40 hover:bg-white cursor-pointer transition-all flex flex-col items-center justify-center text-center gap-2 min-h-[120px] group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-neutral-100 group-hover:bg-neutral-900 group-hover:text-white text-neutral-600 flex items-center justify-center transition-colors">
+                    <Plus size={20} />
                   </div>
-                  <div className="text-left">
-                    <h2 className="text-lg font-semibold text-gray-900">Auto-Generate Panel</h2>
-                    <p className="text-sm text-gray-500">Describe a scenario and we'll assemble the perfect AI experts.</p>
+                  <div>
+                    <h4 className="font-bold text-neutral-900 text-sm">Create New Character</h4>
+                    <p className="text-xs text-neutral-400 mt-0.5">Build a persona with custom expertise & tone</p>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Preset Scenarios */}
+              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Compass size={14} /> Or Start With Preset Assemblies
+                  </h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {PRESET_SCENES.map((scene, idx) => (
+                    <button 
+                      key={idx}
+                      onClick={() => {
+                        setActiveRoster(scene.roles);
+                        handleSend(scene.prompt);
+                      }}
+                      className="text-left bg-neutral-50 hover:bg-neutral-100 p-3.5 rounded-xl border border-neutral-200/60 transition-all flex flex-col justify-between group"
+                    >
+                      <div>
+                        <div className="font-semibold text-neutral-900 text-sm mb-1 group-hover:text-indigo-600 transition-colors">
+                          {scene.name}
+                        </div>
+                        <div className="text-xs text-neutral-500 line-clamp-2 leading-relaxed">
+                          {scene.prompt}
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center gap-1">
+                        {scene.roles.map(r => {
+                          const ui = getRoleUI(r);
+                          return (
+                            <span key={r} title={ui.name} className={`w-5 h-5 rounded-full ${ui.color} text-white flex items-center justify-center text-[9px] font-bold`}>
+                              {ui.name.charAt(0)}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Auto Generator Panel Option */}
+              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 shadow-2xs space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-neutral-900 text-sm">AI Persona Auto-Generator</h4>
+                    <p className="text-xs text-neutral-500">Describe a scenario and let AI assemble tailored specialist roles</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -491,80 +842,30 @@ export default function App() {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleGenerateRoles();
                     }}
-                    placeholder="e.g. A debate on the ethics of AI..."
-                    className="flex-1 bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                    placeholder="e.g. A team debating sustainable packaging materials..."
+                    className="flex-1 bg-neutral-50 border border-neutral-200 text-neutral-800 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                     disabled={isGeneratingRoles}
                   />
                   <button
                     onClick={handleGenerateRoles}
                     disabled={!scenePrompt.trim() || isGeneratingRoles}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl font-medium text-sm transition-colors disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-semibold text-xs transition-colors disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
                   >
                     {isGeneratingRoles ? (
-                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                      'Generate Roles'
+                      <>
+                        <Zap size={14} /> Generate
+                      </>
                     )}
                   </button>
                 </div>
               </div>
 
-              {/* Preset Scenes */}
-              <div className="w-full">
-                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">Or jump into a preset scene</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {PRESET_SCENES.map((scene, idx) => (
-                    <button 
-                      key={idx}
-                      onClick={() => {
-                        setActiveRoster(scene.roles);
-                        handleSend(scene.prompt);
-                      }}
-                      className="text-left bg-white hover:bg-gray-50 p-4 rounded-xl border border-gray-200 transition-colors group relative overflow-hidden flex flex-col"
-                    >
-                      <div className="font-medium text-gray-900 mb-1">{scene.name}</div>
-                      <div className="text-xs text-gray-500 line-clamp-2">{scene.prompt}</div>
-                      <div className="mt-3 flex -space-x-2">
-                        {scene.roles.map(r => {
-                          const conf = availableRoles[r] || customRoles[r];
-                          if (!conf) return null;
-                          return (
-                            <div key={r} title={conf.display_name} className="w-6 h-6 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-gray-600">
-                              {conf.display_name.charAt(0)}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Skip to Text Box Option */}
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 w-full flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-left">
-                  <h4 className="font-semibold text-gray-900 text-sm">Skip to Text Brainstorming</h4>
-                  <p className="text-xs text-gray-500 mt-0.5">Skip role configuration and start discussing with default agents instantly.</p>
-                </div>
-                <button
-                  onClick={() => {
-                    const defaultRoles = Object.keys(availableRoles).length > 0 
-                      ? Object.keys(availableRoles) 
-                      : ['strategist', 'skeptic', 'creative', 'executor', 'technical_architect', 'user_advocate'];
-                    setActiveRoster(defaultRoles);
-                    setTimeout(() => {
-                      textareaRef.current?.focus();
-                    }, 50);
-                  }}
-                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs px-4 py-2.5 rounded-xl font-semibold transition-colors border border-indigo-100"
-                >
-                  Skip and start typing
-                </button>
-              </div>
-
             </div>
           )}
 
+          {/* MESSAGE LOG */}
           <AnimatePresence>
             {messages.map(m => renderMessage(m))}
             
@@ -581,8 +882,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* Input Area */}
-      <div className="bg-white border-t border-gray-200 p-4">
+      {/* FLOATING MINIMAL INPUT BAR */}
+      <div className="bg-white/95 backdrop-blur-md border-t border-neutral-200/80 p-4 z-20">
         <div className="max-w-4xl mx-auto relative">
           <textarea
             ref={textareaRef}
@@ -594,178 +895,303 @@ export default function App() {
                 handleSend();
               }
             }}
-            placeholder={activeRoster.length > 0 ? "Describe your idea or ask the panel a question..." : "Please select at least one agent to brainstorm..."}
-            className={`w-full bg-gray-50 border border-gray-200 rounded-2xl pl-5 pr-14 py-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all shadow-inner resize-none min-h-[56px] max-h-32 ${activeRoster.length === 0 ? 'opacity-50 bg-gray-100 cursor-not-allowed' : ''}`}
+            placeholder={
+              activeRoster.length > 0 
+                ? "Describe your idea, ask the panel a question, or trigger a debate..." 
+                : "Select at least one character above to start brainstorming..."
+            }
+            className={`w-full bg-neutral-50 border border-neutral-200/90 rounded-2xl pl-5 pr-14 py-3.5 text-[14.5px] focus:outline-none focus:ring-2 focus:ring-neutral-800 focus:bg-white transition-all shadow-2xs resize-none min-h-[52px] max-h-32 ${
+              activeRoster.length === 0 ? 'opacity-50 bg-neutral-100 cursor-not-allowed' : ''
+            }`}
             rows={1}
             disabled={isProcessing || !roomId || activeRoster.length === 0}
           />
+          
           {isProcessing ? (
             <button
               onClick={handleCancel}
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-xl transition-colors shadow-sm animate-pulse"
+              className="absolute right-3 top-1/2 -translate-y-1/2 bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-xl transition-colors shadow-2xs animate-pulse"
               title="Cancel generation"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           ) : (
             <button
               onClick={() => handleSend()}
               disabled={!input.trim() || !roomId || activeRoster.length === 0}
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-xl disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors shadow-sm"
+              className="absolute right-3 top-1/2 -translate-y-1/2 bg-neutral-900 hover:bg-neutral-800 text-white p-2 rounded-xl disabled:opacity-30 transition-colors shadow-2xs"
             >
-              <Send size={18} />
+              <Send size={16} />
             </button>
           )}
         </div>
-        <div className="text-center mt-2 flex flex-wrap items-center justify-center gap-3">
-           {isProcessing && (
-             <button
-               onClick={handleCancel}
-               className="flex items-center gap-1.5 px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 rounded-full text-[11px] font-semibold transition-colors border border-rose-100 shadow-sm animate-pulse"
-               title="Cancel active brainstorming generation"
-             >
-               <span className="w-1.5 h-1.5 bg-rose-600 rounded-full animate-ping inline-block"></span>
-               <span>Cancel Stream</span>
-             </button>
-           )}
-           <span className="text-[11px] text-gray-400 font-medium">Shift + Enter for new line</span>
+
+        <div className="text-center mt-2 flex items-center justify-center gap-3">
+          {isProcessing && (
+            <button
+              onClick={handleCancel}
+              className="flex items-center gap-1.5 px-3 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-full text-[11px] font-semibold transition-colors border border-rose-100 shadow-2xs animate-pulse"
+            >
+              <span className="w-1.5 h-1.5 bg-rose-600 rounded-full animate-ping" />
+              <span>Cancel Stream</span>
+            </button>
+          )}
+          <span className="text-[11px] text-neutral-400 font-medium">Shift + Enter for line break</span>
         </div>
       </div>
-      
-      {/* Manage Panel Modal */}
+
+      {/* CREATE CUSTOM CHARACTER MODAL */}
       <AnimatePresence>
-        {isManagePanelOpen && (
+        {isCreateCharacterModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]"
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col border border-neutral-200"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-100">
-                <h2 className="text-lg font-semibold">Manage AI Panel</h2>
-                <button onClick={() => setIsManagePanelOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500">
-                  <X size={20} />
+              <div className="flex items-center justify-between p-5 border-b border-neutral-100">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                    <PlusCircle size={20} />
+                  </div>
+                  <h3 className="text-base font-bold text-neutral-900">Create Custom Character</h3>
+                </div>
+                <button 
+                  onClick={() => setIsCreateCharacterModalOpen(false)} 
+                  className="p-1.5 hover:bg-neutral-100 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors"
+                >
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="overflow-y-auto p-5 flex-1 flex flex-col gap-8">
-                {/* Active Roster */}
+              <div className="p-5 space-y-4 text-left overflow-y-auto max-h-[75vh]">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Users size={16} className="text-blue-600" /> Predefined Agents
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {Object.entries(availableRoles).map(([id, role]) => (
-                      <label key={id} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${activeRoster.includes(id) ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-                        <input 
-                          type="checkbox" 
-                          className="mt-1"
-                          checked={activeRoster.includes(id)}
-                          onChange={(e) => {
-                            if (e.target.checked) setActiveRoster(prev => [...prev, id]);
-                            else setActiveRoster(prev => prev.filter(r => r !== id));
-                          }}
-                        />
-                        <div>
-                          <div className="font-medium text-sm text-gray-900">{role.display_name}</div>
-                          <div className="text-xs text-gray-500 mt-1 line-clamp-2">{role.system_prompt}</div>
-                        </div>
-                      </label>
+                  <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Character Name
+                  </label>
+                  <input 
+                    type="text" 
+                    value={newCharacter.display_name}
+                    onChange={e => setNewCharacter({ ...newCharacter, display_name: e.target.value })}
+                    placeholder="e.g. Growth Strategist, Security Auditor, Steve Jobs Persona..."
+                    className="w-full text-sm bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    System Prompt / Persona Instructions
+                  </label>
+                  <textarea 
+                    value={newCharacter.system_prompt}
+                    onChange={e => setNewCharacter({ ...newCharacter, system_prompt: e.target.value })}
+                    placeholder="Describe how this persona behaves, their background, tone, and focus during discussions..."
+                    className="w-full text-sm bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 min-h-[90px] leading-relaxed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-2">
+                    Color Badge Accent
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {COLOR_OPTIONS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => setNewCharacter({ ...newCharacter, color: c.value })}
+                        className={`w-7 h-7 rounded-full ${c.value} transition-all flex items-center justify-center text-white ${
+                          newCharacter.color === c.value ? 'ring-2 ring-offset-2 ring-neutral-800 scale-110' : 'opacity-80 hover:opacity-100'
+                        }`}
+                      >
+                        {newCharacter.color === c.value && <Check size={12} strokeWidth={3} />}
+                      </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Custom Roles */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Wrench size={16} className="text-indigo-600" /> Custom Agents
-                  </h3>
-                  
-                  {Object.keys(customRoles).length > 0 && (
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      {Object.entries(customRoles).map(([id, role]) => (
-                        <label key={id} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${activeRoster.includes(id) ? 'bg-indigo-50/50 border-indigo-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-                          <input 
-                            type="checkbox" 
-                            className="mt-1"
-                            checked={activeRoster.includes(id)}
-                            onChange={(e) => {
-                              if (e.target.checked) setActiveRoster(prev => [...prev, id]);
-                              else setActiveRoster(prev => prev.filter(r => r !== id));
-                            }}
-                          />
-                          <div>
-                            <div className="font-medium text-sm text-gray-900">{role.display_name}</div>
-                            <div className="text-xs text-gray-500 mt-1 line-clamp-2">{role.system_prompt}</div>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                    <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">Create New Agent</h4>
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">ID (no spaces)</label>
-                          <input 
-                            type="text" 
-                            value={newRole.id}
-                            onChange={e => setNewRole({...newRole, id: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '')})}
-                            placeholder="e.g. devil_advocate"
-                            className="w-full text-sm bg-white border border-gray-200 rounded-lg px-3 py-2"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Display Name</label>
-                          <input 
-                            type="text" 
-                            value={newRole.display_name}
-                            onChange={e => setNewRole({...newRole, display_name: e.target.value})}
-                            placeholder="e.g. Devil's Advocate"
-                            className="w-full text-sm bg-white border border-gray-200 rounded-lg px-3 py-2"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">System Prompt</label>
-                        <textarea 
-                          value={newRole.system_prompt}
-                          onChange={e => setNewRole({...newRole, system_prompt: e.target.value})}
-                          placeholder="You are a..."
-                          className="w-full text-sm bg-white border border-gray-200 rounded-lg px-3 py-2 min-h-[80px]"
-                        />
-                      </div>
-                      <div className="flex justify-end">
-                        <button 
-                          onClick={() => {
-                            if (!newRole.id || !newRole.display_name || !newRole.system_prompt) return;
-                            setCustomRoles(prev => ({ ...prev, [newRole.id]: {
-                              display_name: newRole.display_name,
-                              model: newRole.model,
-                              system_prompt: newRole.system_prompt,
-                              temperature: newRole.temperature
-                            }}));
-                            setActiveRoster(prev => [...prev, newRole.id]);
-                            setNewRole({ id: '', display_name: '', model: 'open-mixtral-8x22b', system_prompt: '', temperature: 0.7 });
-                          }}
-                          disabled={!newRole.id || !newRole.display_name || !newRole.system_prompt}
-                          className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors"
-                        >
-                          <Plus size={16} /> Add Agent
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
+                  <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    LLM Engine Model
+                  </label>
+                  <select
+                    value={newCharacter.model}
+                    onChange={e => setNewCharacter({ ...newCharacter, model: e.target.value })}
+                    className="w-full text-xs bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 font-mono"
+                  >
+                    <option value="mistral-large-latest">mistral-large-latest (Reasoning)</option>
+                    <option value="mistral-small-latest">mistral-small-latest (Fast)</option>
+                    <option value="open-mixtral-8x22b">open-mixtral-8x22b (Creative)</option>
+                    <option value="codestral-latest">codestral-latest (Technical)</option>
+                    <option value="open-mistral-nemo">open-mistral-nemo (Pragmatic)</option>
+                  </select>
                 </div>
               </div>
-              <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+
+              <div className="p-4 border-t border-neutral-100 bg-neutral-50/50 flex items-center justify-end gap-2">
+                <button 
+                  onClick={() => setIsCreateCharacterModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-neutral-600 hover:text-neutral-900 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleCreateCustomCharacter}
+                  disabled={!newCharacter.display_name.trim() || !newCharacter.system_prompt.trim()}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-2xs"
+                >
+                  <Plus size={14} /> Add to Room Roster
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MANAGE CHARACTERS PANEL OVERLAY */}
+      <AnimatePresence>
+        {isManagePanelOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] border border-neutral-200"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-neutral-100">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-neutral-100 text-neutral-800 rounded-lg">
+                    <Users size={18} />
+                  </div>
+                  <h3 className="text-base font-bold text-neutral-900">Manage Room Characters</h3>
+                </div>
+                <button 
+                  onClick={() => setIsManagePanelOpen(false)} 
+                  className="p-1.5 hover:bg-neutral-100 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto p-5 space-y-6 flex-1">
+                {/* Built-in Characters */}
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    Built-In Personas
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {Object.entries(availableRoles).map(([id, role]) => {
+                      const isSelected = activeRoster.includes(id);
+                      const ui = getRoleUI(id);
+                      const Icon = ui.icon;
+
+                      return (
+                        <div
+                          key={id}
+                          onClick={() => toggleRoleSelection(id)}
+                          className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                            isSelected 
+                              ? 'bg-neutral-50 border-neutral-900 ring-1 ring-neutral-900/10' 
+                              : 'bg-white border-neutral-200/80 hover:border-neutral-300'
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-white ${ui.color}`}>
+                            <Icon size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-xs text-neutral-900 truncate">{role.display_name}</span>
+                              <div className={`w-4 h-4 rounded-full flex items-center justify-center ${
+                                isSelected ? 'bg-neutral-900 text-white' : 'border border-neutral-300'
+                              }`}>
+                                {isSelected && <Check size={10} strokeWidth={3} />}
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-neutral-500 line-clamp-1 mt-0.5">{role.system_prompt}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Custom User Personas */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
+                      Custom Personas ({Object.keys(customRoles).length})
+                    </h4>
+                    <button
+                      onClick={() => {
+                        setIsManagePanelOpen(false);
+                        setIsCreateCharacterModalOpen(true);
+                      }}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                    >
+                      <Plus size={14} /> New Persona
+                    </button>
+                  </div>
+
+                  {Object.keys(customRoles).length === 0 ? (
+                    <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200/60 text-center text-xs text-neutral-400">
+                      No custom personas created yet. Click above to build your first custom character!
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {Object.entries(customRoles).map(([id, role]) => {
+                        const isSelected = activeRoster.includes(id);
+                        const ui = getRoleUI(id);
+                        const Icon = ui.icon;
+
+                        return (
+                          <div
+                            key={id}
+                            onClick={() => toggleRoleSelection(id)}
+                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                              isSelected 
+                                ? 'bg-indigo-50/50 border-indigo-600 ring-1 ring-indigo-500/10' 
+                                : 'bg-white border-neutral-200/80 hover:border-neutral-300'
+                            }`}
+                          >
+                            <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-white ${ui.color}`}>
+                              <Icon size={16} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-bold text-xs text-neutral-900 truncate">{role.display_name}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteCustomCharacter(id);
+                                    }}
+                                    className="text-neutral-400 hover:text-rose-600 p-0.5"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                  <div className={`w-4 h-4 rounded-full flex items-center justify-center ${
+                                    isSelected ? 'bg-indigo-600 text-white' : 'border border-neutral-300'
+                                  }`}>
+                                    {isSelected && <Check size={10} strokeWidth={3} />}
+                                  </div>
+                                </div>
+                              </div>
+                              <p className="text-[11px] text-neutral-500 line-clamp-1 mt-0.5">{role.system_prompt}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              <div className="p-4 border-t border-neutral-100 bg-neutral-50/50 flex justify-end">
                 <button 
                   onClick={() => setIsManagePanelOpen(false)}
-                  className="bg-gray-900 text-white px-5 py-2 rounded-lg font-medium hover:bg-gray-800 transition-colors"
+                  className="bg-neutral-900 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-neutral-800 transition-colors"
                 >
                   Done
                 </button>
@@ -774,6 +1200,7 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
     </div>
   );
 }
