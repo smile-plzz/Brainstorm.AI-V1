@@ -9,7 +9,7 @@ import {
   RefreshCcw, Settings, Plus, X, Check, Trash2, MessageSquare, Zap, Sliders, Shield, Compass, Lightbulb, PlusCircle,
   Search, Filter, TrendingUp, Cpu, Palette, DollarSign, Target, Globe, Terminal, Lock, Eye, Feather, Award, ChevronRight, Grid,
   Clock, Anchor, Wand2, Coffee, Music, Flame, Radio, Crown,
-  Rocket, Utensils, Trophy, Ghost, Cat, Sun, Moon, Bot
+  Rocket, Utensils, Trophy, Ghost, Cat, Sun, Moon, Bot, Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -168,6 +168,7 @@ export default function App() {
   const [isAutopilot, setIsAutopilot] = useState(false);
   const [isFastMode, setIsFastMode] = useState(false);
   const [isSkipStream, setIsSkipStream] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -567,12 +568,12 @@ export default function App() {
             </div>
             
             <div 
-              className={`px-5 py-3.5 rounded-2xl text-[14.5px] leading-relaxed transition-all ${
+              className={`px-4 sm:px-5 py-3.5 rounded-2xl text-[14px] sm:text-[14.5px] leading-relaxed transition-all ${
                 isUser 
                   ? 'bg-neutral-900 text-white rounded-tr-xs shadow-sm' 
                   : isSystem
                     ? 'bg-neutral-100 text-neutral-600 italic rounded-tl-xs border border-neutral-200/80'
-                    : 'bg-white text-neutral-800 shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-neutral-200/80 rounded-tl-xs prose prose-slate max-w-none'
+                    : 'bg-white text-neutral-800 shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-neutral-200/80 rounded-tl-xs prose prose-sm sm:prose-slate max-w-none break-words'
               }`}
             >
               {isUser ? (
@@ -635,7 +636,15 @@ export default function App() {
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 sm:gap-4">
-          <div className="hidden md:flex items-center gap-2">
+          {/* Mobile Menu Toggle */}
+          <button 
+            className="lg:hidden p-2 text-neutral-500 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200/60 rounded-xl transition-colors"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            <Menu size={16} />
+          </button>
+
+          <div className="hidden lg:flex items-center gap-2">
             <label htmlFor="crossTalk" className="text-xs text-neutral-500 font-medium">Cross-talk:</label>
             <select
               id="crossTalk"
@@ -687,7 +696,7 @@ export default function App() {
               title="Browse Full Character Library"
             >
               <Grid size={14} />
-              <span className="hidden sm:inline">Character Library</span>
+              <span className="hidden sm:inline">Library</span>
             </button>
 
             <button
@@ -702,7 +711,7 @@ export default function App() {
             <button
               onClick={startNewRoom}
               disabled={isProcessing}
-              className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-xl disabled:opacity-30 transition-colors"
+              className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-xl disabled:opacity-30 transition-colors hidden sm:flex"
               title="New Room"
             >
               <RefreshCcw size={16} />
@@ -720,10 +729,69 @@ export default function App() {
         </div>
       </header>
 
+      {/* Mobile Collapsible Menu */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="lg:hidden bg-white border-b border-neutral-200/80 overflow-hidden z-10"
+          >
+            <div className="p-4 flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <label htmlFor="crossTalkMobile" className="text-xs text-neutral-500 font-medium">Cross-talk Dynamics</label>
+                <select
+                  id="crossTalkMobile"
+                  value={crossTalkLevel}
+                  onChange={(e) => setCrossTalkLevel(e.target.value as 'low' | 'medium' | 'high')}
+                  className="text-sm bg-neutral-100 hover:bg-neutral-200/60 border border-neutral-200/80 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 text-neutral-800 font-medium transition-colors w-full"
+                  disabled={isProcessing}
+                >
+                  <option value="low">Low Dynamics</option>
+                  <option value="medium">Medium Dynamics</option>
+                  <option value="high">High Dynamics</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-3 pt-2 border-t border-neutral-100">
+                <label className="flex items-center justify-between text-sm text-neutral-700 font-medium cursor-pointer">
+                  <span>Autopilot Mode</span>
+                  <input 
+                    type="checkbox" 
+                    checked={isAutopilot} 
+                    onChange={e => setIsAutopilot(e.target.checked)} 
+                    className="w-4 h-4 text-neutral-900 rounded border-neutral-300 focus:ring-neutral-800"
+                  />
+                </label>
+                <label className="flex items-center justify-between text-sm text-neutral-700 font-medium cursor-pointer">
+                  <span>Fast Mode</span>
+                  <input 
+                    type="checkbox" 
+                    checked={isFastMode} 
+                    onChange={e => setIsFastMode(e.target.checked)} 
+                    className="w-4 h-4 text-neutral-900 rounded border-neutral-300 focus:ring-neutral-800"
+                  />
+                </label>
+                <label className="flex items-center justify-between text-sm text-neutral-700 font-medium cursor-pointer">
+                  <span>Instant Text (Skip Stream)</span>
+                  <input 
+                    type="checkbox" 
+                    checked={isSkipStream} 
+                    onChange={e => setIsSkipStream(e.target.checked)} 
+                    className="w-4 h-4 text-neutral-900 rounded border-neutral-300 focus:ring-neutral-800"
+                  />
+                </label>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Sub-header Active Character Strip when actively conversing */}
       {messages.length > 0 && (
-        <div className="bg-white/80 border-b border-neutral-200/60 px-4 py-2 flex items-center justify-between overflow-x-auto text-xs gap-3">
-          <div className="flex items-center gap-2 overflow-x-auto py-0.5">
+        <div className="bg-white/80 border-b border-neutral-200/60 px-4 py-2 flex items-center justify-between overflow-x-auto text-xs gap-3 no-scrollbar">
+          <div className="flex items-center gap-2 overflow-x-auto py-0.5 no-scrollbar">
             <span className="text-neutral-400 font-semibold uppercase tracking-wider text-[10px] flex-shrink-0">Active Roster:</span>
             {activeRoster.map(id => {
               const conf = getRoleUI(id);
@@ -1108,7 +1176,7 @@ export default function App() {
                 </div>
 
                 {/* Category Pills */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+                <div className="flex flex-wrap items-center gap-1.5 pb-1 text-xs">
                   {CATEGORIES.map(cat => (
                     <button
                       key={cat}
