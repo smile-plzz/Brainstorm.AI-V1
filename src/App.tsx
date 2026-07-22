@@ -3,10 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Send, Users, Sparkles, User, BrainCircuit, Wrench, Heart, Download, 
-  RefreshCcw, Settings, Plus, X, Check, Trash2, MessageSquare, Zap, Sliders, Shield, Compass, Lightbulb, PlusCircle 
+  RefreshCcw, Settings, Plus, X, Check, Trash2, MessageSquare, Zap, Sliders, Shield, Compass, Lightbulb, PlusCircle,
+  Search, Filter, TrendingUp, Cpu, Palette, DollarSign, Target, Globe, Terminal, Lock, Eye, Feather, Award, ChevronRight, Grid,
+  Clock, Anchor, Wand2, Coffee, Music, Flame, Radio, Crown,
+  Rocket, Utensils, Trophy, Ghost, Cat, Sun, Moon, Bot
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -33,42 +36,86 @@ interface CharacterConfig {
   model: string;
   system_prompt: string;
   temperature: number;
+  category?: string;
   color?: string;
   iconType?: string;
 }
 
-// Built-in role UI configurations
-const ROLE_UI: Record<string, { name: string, color: string, icon: any }> = {
-  user: { name: 'You', color: 'bg-blue-600', icon: User },
-  system: { name: 'System', color: 'bg-neutral-500', icon: Sparkles },
-  strategist: { name: 'The Strategist', color: 'bg-emerald-600', icon: BrainCircuit },
-  skeptic: { name: 'The Skeptical CFO', color: 'bg-rose-600', icon: Shield },
-  creative: { name: 'The Creative', color: 'bg-purple-600', icon: Lightbulb },
-  executor: { name: 'The Executor', color: 'bg-amber-600', icon: Compass },
-  technical_architect: { name: 'The Tech Architect', color: 'bg-indigo-600', icon: Wrench },
-  user_advocate: { name: 'The User Advocate', color: 'bg-teal-600', icon: Heart }
+// Built-in role UI configurations with unique icons & colors
+const ROLE_UI: Record<string, { name: string, color: string, icon: any, category: string }> = {
+  user: { name: 'You', color: 'bg-blue-600', icon: User, category: 'General' },
+  system: { name: 'System', color: 'bg-neutral-500', icon: Sparkles, category: 'General' },
+  strategist: { name: 'The Strategist', color: 'bg-emerald-600', icon: BrainCircuit, category: 'Strategy & Leadership' },
+  skeptic: { name: 'The Skeptical CFO', color: 'bg-rose-600', icon: Shield, category: 'Finance & Risk' },
+  creative: { name: 'The Creative Director', color: 'bg-purple-600', icon: Lightbulb, category: 'Creative & Design' },
+  executor: { name: 'The Operations Executor', color: 'bg-amber-600', icon: Compass, category: 'Strategy & Leadership' },
+  technical_architect: { name: 'The Tech Architect', color: 'bg-indigo-600', icon: Wrench, category: 'Engineering & Product' },
+  user_advocate: { name: 'The User Advocate', color: 'bg-teal-600', icon: Heart, category: 'Creative & Design' },
+  growth_hacker: { name: 'The Growth Marketer', color: 'bg-cyan-600', icon: TrendingUp, category: 'Marketing & Sales' },
+  security_auditor: { name: 'The Cybersecurity Specialist', color: 'bg-slate-700', icon: Lock, category: 'Engineering & Product' },
+  product_designer: { name: 'The Product Designer', color: 'bg-fuchsia-600', icon: Palette, category: 'Creative & Design' },
+  data_scientist: { name: 'The Data Scientist', color: 'bg-violet-600', icon: Cpu, category: 'Finance & Risk' },
+  sales_strategist: { name: 'The Sales Strategist', color: 'bg-blue-600', icon: Target, category: 'Marketing & Sales' },
+  futurist: { name: 'The Innovation Futurist', color: 'bg-sky-600', icon: Globe, category: 'Strategy & Leadership' },
+  copywriter: { name: 'The Brand Copywriter', color: 'bg-orange-600', icon: Feather, category: 'Marketing & Sales' },
+  devops_engineer: { name: 'The Cloud & SRE Lead', color: 'bg-neutral-800', icon: Terminal, category: 'Engineering & Product' },
+  ethicist: { name: 'The AI Ethicist', color: 'bg-emerald-700', icon: Eye, category: 'Finance & Risk' },
+  venture_capitalist: { name: 'The Venture Capitalist', color: 'bg-emerald-800', icon: DollarSign, category: 'Strategy & Leadership' },
+  
+  // Fun & Wild Characters
+  time_traveler: { name: 'The Time Traveler', color: 'bg-violet-700', icon: Clock, category: 'Fun & Wild' },
+  pirate_captain: { name: 'Captain Blackbeard', color: 'bg-amber-700', icon: Anchor, category: 'Fun & Wild' },
+  wizard: { name: 'Archmage Merlin', color: 'bg-indigo-800', icon: Wand2, category: 'Fun & Wild' },
+  noir_detective: { name: 'Hardboiled Detective', color: 'bg-neutral-800', icon: Coffee, category: 'Fun & Wild' },
+  hype_man: { name: 'The Hype-Man DJ', color: 'bg-pink-600', icon: Music, category: 'Fun & Wild' },
+  gen_z_critic: { name: 'Gen Z Trend Critic', color: 'bg-rose-500', icon: Flame, category: 'Fun & Wild' },
+  conspiracy_theorist: { name: 'The Conspiracy Theorist', color: 'bg-yellow-700', icon: Radio, category: 'Fun & Wild' },
+  renaissance_polymath: { name: 'Leonardo da Vinci', color: 'bg-amber-800', icon: Crown, category: 'Fun & Wild' },
+  alien_observer: { name: 'Alien Anthropologist', color: 'bg-emerald-600', icon: Rocket, category: 'Fun & Wild' },
+  medieval_bard: { name: 'Sir William the Bard', color: 'bg-orange-700', icon: Feather, category: 'Fun & Wild' },
+  gourmet_chef: { name: 'Chef Auguste (3-Star)', color: 'bg-red-700', icon: Utensils, category: 'Fun & Wild' },
+  action_hero: { name: 'Major John Maverick', color: 'bg-stone-800', icon: Zap, category: 'Fun & Wild' },
+  zen_master: { name: 'Zen Master Bodhi', color: 'bg-teal-700', icon: Sun, category: 'Fun & Wild' },
+  game_show_host: { name: 'Johnny Sparkles', color: 'bg-yellow-600', icon: Trophy, category: 'Fun & Wild' },
+  victorian_ghost: { name: 'Lady Eleanor (Ghost)', color: 'bg-slate-800', icon: Ghost, category: 'Fun & Wild' },
+  cat_philosopher: { name: 'Professor Whiskers', color: 'bg-amber-600', icon: Cat, category: 'Fun & Wild' },
+  galactic_ai_overlord: { name: 'OVERLORD-9000', color: 'bg-cyan-700', icon: Bot, category: 'Fun & Wild' },
+  superhero_vigilante: { name: 'The Night Guardian', color: 'bg-purple-950', icon: Moon, category: 'Fun & Wild' }
 };
 
 const COLOR_OPTIONS = [
-  { name: 'Indigo', value: 'bg-indigo-600', border: 'border-indigo-200', bgLight: 'bg-indigo-50/50' },
-  { name: 'Emerald', value: 'bg-emerald-600', border: 'border-emerald-200', bgLight: 'bg-emerald-50/50' },
-  { name: 'Purple', value: 'bg-purple-600', border: 'border-purple-200', bgLight: 'bg-purple-50/50' },
-  { name: 'Rose', value: 'bg-rose-600', border: 'border-rose-200', bgLight: 'bg-rose-50/50' },
-  { name: 'Amber', value: 'bg-amber-600', border: 'border-amber-200', bgLight: 'bg-amber-50/50' },
-  { name: 'Cyan', value: 'bg-cyan-600', border: 'border-cyan-200', bgLight: 'bg-cyan-50/50' },
-  { name: 'Teal', value: 'bg-teal-600', border: 'border-teal-200', bgLight: 'bg-teal-50/50' },
-  { name: 'Violet', value: 'bg-violet-600', border: 'border-violet-200', bgLight: 'bg-violet-50/50' }
+  { name: 'Indigo', value: 'bg-indigo-600' },
+  { name: 'Emerald', value: 'bg-emerald-600' },
+  { name: 'Purple', value: 'bg-purple-600' },
+  { name: 'Rose', value: 'bg-rose-600' },
+  { name: 'Amber', value: 'bg-amber-600' },
+  { name: 'Cyan', value: 'bg-cyan-600' },
+  { name: 'Teal', value: 'bg-teal-600' },
+  { name: 'Violet', value: 'bg-violet-600' }
+];
+
+const CATEGORIES = [
+  'All',
+  'Fun & Wild',
+  'Strategy & Leadership',
+  'Engineering & Product',
+  'Creative & Design',
+  'Marketing & Sales',
+  'Finance & Risk',
+  'Custom'
 ];
 
 const PRESET_SCENES = [
-  { name: 'Startup Pitch', roles: ['strategist', 'skeptic', 'creative'], prompt: "Help me refine my startup pitch and challenge my assumptions." },
-  { name: 'Architecture Review', roles: ['technical_architect', 'executor', 'skeptic'], prompt: "Let's review the technical design and scalability of a real-time web platform." },
-  { name: 'Product Launch', roles: ['strategist', 'creative', 'user_advocate'], prompt: "We need an integrated launch strategy and user onboarding plan for our new application." }
+  { name: 'Multiverse Panel', roles: ['time_traveler', 'pirate_captain', 'wizard', 'hype_man', 'gen_z_critic'], prompt: "Let's pitch an outlandish new product idea to a wild cross-dimensional panel!" },
+  { name: 'Ultimate Chaos Court', roles: ['alien_observer', 'gourmet_chef', 'cat_philosopher', 'game_show_host', 'victorian_ghost'], prompt: "Present a simple everyday human activity and let this absurd panel dissect it!" },
+  { name: 'Startup Pitch', roles: ['strategist', 'skeptic', 'creative', 'venture_capitalist'], prompt: "Help me refine my startup pitch and challenge my core assumptions." },
+  { name: 'Architecture & Security', roles: ['technical_architect', 'security_auditor', 'devops_engineer'], prompt: "Let's review the technical scalability and cloud security of a real-time web platform." },
+  { name: 'Product Launch', roles: ['product_designer', 'growth_hacker', 'copywriter', 'user_advocate'], prompt: "We need an integrated launch strategy, branding, and user onboarding plan for our application." }
 ];
 
 export default function App() {
   const [roomId, setRoomId] = useState<string | null>(null);
-  const [, setRoom] = useState<Room | null>(null);
+  const [room, setRoom] = useState<Room | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -80,7 +127,17 @@ export default function App() {
   const [customRoles, setCustomRoles] = useState<Record<string, CharacterConfig>>(() => {
     try {
       const saved = localStorage.getItem('brainstorm_custom_roles');
-      return saved ? JSON.parse(saved) : {};
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Fix any old personas that were incorrectly marked as Fun & Wild
+        Object.values(parsed).forEach((role: any) => {
+          if (role.category === 'Fun & Wild') {
+            role.category = 'Custom';
+          }
+        });
+        return parsed;
+      }
+      return {};
     } catch {
       return {};
     }
@@ -88,12 +145,18 @@ export default function App() {
   
   const [activeRoster, setActiveRoster] = useState<string[]>([]);
   const [isManagePanelOpen, setIsManagePanelOpen] = useState(false);
+  const [isSeeMoreModalOpen, setIsSeeMoreModalOpen] = useState(false);
   const [isCreateCharacterModalOpen, setIsCreateCharacterModalOpen] = useState(false);
+
+  // Character Modal Filtering State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   
   // Custom Role Form State
   const [newCharacter, setNewCharacter] = useState({
     display_name: '',
     system_prompt: '',
+    category: 'Strategy & Leadership',
     color: 'bg-indigo-600',
     model: 'mistral-large-latest',
     temperature: 0.7
@@ -101,6 +164,7 @@ export default function App() {
 
   const [isGeneratingRoles, setIsGeneratingRoles] = useState(false);
   const [scenePrompt, setScenePrompt] = useState('');
+  const [notification, setNotification] = useState<string | null>(null);
   const [isAutopilot, setIsAutopilot] = useState(false);
   const [isFastMode, setIsFastMode] = useState(false);
   const [isSkipStream, setIsSkipStream] = useState(false);
@@ -142,36 +206,53 @@ export default function App() {
     await initRoom();
   };
 
-  const handleGenerateRoles = async () => {
-    if (!scenePrompt.trim() || isGeneratingRoles) return;
+  const handleGenerateRoles = async (overridePrompt?: string) => {
+    const promptToUse = overridePrompt || scenePrompt;
+    if (!promptToUse.trim() || isGeneratingRoles) return;
     setIsGeneratingRoles(true);
     try {
       const res = await fetch('/api/generate-roles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scene: scenePrompt })
+        body: JSON.stringify({ scene: promptToUse })
       });
       const data = await res.json();
-      if (data.roles && Array.isArray(data.roles)) {
+      if (data.roles && Array.isArray(data.roles) && data.roles.length > 0) {
         const newCustomRoles: Record<string, CharacterConfig> = {};
         const newRoster: string[] = [];
-        data.roles.forEach((r: any) => {
-          const charId = r.id || `custom_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        data.roles.forEach((r: any, idx: number) => {
+          const charId = r.id ? `custom_${r.id}` : `custom_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`;
           newCustomRoles[charId] = {
-            display_name: r.display_name,
+            display_name: r.display_name || 'AI Persona',
             model: r.model || 'mistral-large-latest',
-            system_prompt: r.system_prompt,
+            system_prompt: r.system_prompt || `Specialist persona evaluating ${promptToUse}.`,
             temperature: r.temperature || 0.7,
-            color: COLOR_OPTIONS[Math.floor(Math.random() * COLOR_OPTIONS.length)].value
+            category: 'Custom',
+            color: COLOR_OPTIONS[idx % COLOR_OPTIONS.length].value
           };
           newRoster.push(charId);
         });
         setCustomRoles(prev => ({ ...prev, ...newCustomRoles }));
-        setActiveRoster(prev => Array.from(new Set([...prev, ...newRoster])));
+        setActiveRoster(newRoster);
         setScenePrompt('');
+        
+        const topicSnippet = promptToUse.length > 28 ? promptToUse.slice(0, 28) + '...' : promptToUse;
+        setNotification(`Created ${data.roles.length} relevant personas for "${topicSnippet}"!`);
+        setTimeout(() => setNotification(null), 4500);
+
+        // Start chat automatically
+        const nextCustomRoles = { ...customRoles, ...newCustomRoles };
+        const nextRoster = newRoster;
+        handleSend(`Let's discuss: ${promptToUse}`, false, nextRoster, nextCustomRoles, promptToUse);
+      } else {
+        console.error('Role generation response issue:', data);
+        setNotification('Could not generate personas for that topic. Please try again.');
+        setTimeout(() => setNotification(null), 3500);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to generate roles:', err);
+      setNotification('Failed to generate roles. Please check network connection.');
+      setTimeout(() => setNotification(null), 3500);
     } finally {
       setIsGeneratingRoles(false);
     }
@@ -184,6 +265,7 @@ export default function App() {
     const createdConfig: CharacterConfig = {
       display_name: newCharacter.display_name.trim(),
       system_prompt: newCharacter.system_prompt.trim(),
+      category: newCharacter.category || 'Custom',
       color: newCharacter.color,
       model: newCharacter.model,
       temperature: newCharacter.temperature
@@ -194,6 +276,7 @@ export default function App() {
     setNewCharacter({
       display_name: '',
       system_prompt: '',
+      category: 'Strategy & Leadership',
       color: 'bg-indigo-600',
       model: 'mistral-large-latest',
       temperature: 0.7
@@ -225,9 +308,6 @@ export default function App() {
       const res = await fetch('/api/roles');
       const data = await res.json();
       setAvailableRoles(data);
-      if (activeRoster.length === 0) {
-        setActiveRoster(Object.keys(data));
-      }
     } catch (err) {
       console.error('Failed to fetch roles', err);
     }
@@ -249,9 +329,12 @@ export default function App() {
     }
   }, [input]);
 
-  const handleSend = async (overrideInput?: string, isAutoRun = false) => {
+  const handleSend = async (overrideInput?: string, isAutoRun = false, explicitRoster?: string[], explicitCustomRoles?: Record<string, CharacterConfig>, explicitThreadName?: string) => {
     const userText = overrideInput || input;
-    if (!userText.trim() || !roomId || isProcessing || activeRoster.length === 0) return;
+    const currentRoster = explicitRoster || activeRoster;
+    const currentCustomRoles = explicitCustomRoles || customRoles;
+    
+    if (!userText.trim() || !roomId || isProcessing || currentRoster.length === 0) return;
 
     setInput('');
     setIsProcessing(true);
@@ -269,11 +352,12 @@ export default function App() {
         body: JSON.stringify({ 
           content: userText, 
           crossTalkLevel, 
-          roster: activeRoster.length > 0 ? activeRoster : undefined,
-          customRoles,
+          roster: currentRoster,
+          customRoles: currentCustomRoles,
           fastMode: isFastMode,
           isAutopilot: isAutoRun,
-          skipStream: isSkipStream
+          skipStream: isSkipStream,
+          threadName: explicitThreadName
         }),
         signal: controller.signal
       });
@@ -376,17 +460,19 @@ export default function App() {
       return { 
         name: customRoles[speaker].display_name, 
         color: customRoles[speaker].color || 'bg-indigo-600', 
-        icon: User 
+        icon: User,
+        category: customRoles[speaker].category || 'Custom'
       };
     }
     if (availableRoles[speaker]) {
       return { 
         name: availableRoles[speaker].display_name, 
         color: 'bg-neutral-600', 
-        icon: BrainCircuit 
+        icon: BrainCircuit,
+        category: availableRoles[speaker].category || 'General'
       };
     }
-    return { name: speaker, color: 'bg-neutral-600', icon: User };
+    return { name: speaker, color: 'bg-neutral-600', icon: User, category: 'General' };
   };
 
   const exportTranscript = () => {
@@ -413,7 +499,39 @@ export default function App() {
     );
   };
 
-  const allRoleKeys = [...Object.keys(availableRoles), ...Object.keys(customRoles)];
+  const allRoleKeys = useMemo(() => {
+    return Array.from(new Set([...Object.keys(availableRoles), ...Object.keys(customRoles)]));
+  }, [availableRoles, customRoles]);
+
+  // Combined character entries for searching and filtering in the See More Modal
+  const allCharacterEntries = useMemo(() => {
+    const map = new Map<string, { id: string, config: CharacterConfig, isCustom: boolean }>();
+    Object.entries(availableRoles).forEach(([id, config]) => {
+      map.set(id, { id, config, isCustom: false });
+    });
+    Object.entries(customRoles).forEach(([id, config]) => {
+      map.set(id, { id, config, isCustom: true });
+    });
+    return Array.from(map.values());
+  }, [availableRoles, customRoles]);
+
+  const filteredCharacters = useMemo(() => {
+    return allCharacterEntries.filter(item => {
+      const matchesCategory = 
+        selectedCategory === 'All' ? true :
+        selectedCategory === 'Custom' ? item.isCustom :
+        (item.config.category || ROLE_UI[item.id]?.category) === selectedCategory;
+
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = !q || 
+        item.config.display_name.toLowerCase().includes(q) ||
+        item.config.system_prompt.toLowerCase().includes(q) ||
+        item.config.model.toLowerCase().includes(q) ||
+        item.id.toLowerCase().includes(q);
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [allCharacterEntries, selectedCategory, searchQuery]);
 
   const renderMessage = (msg: Message | { id: string, roomId: string, speaker: string, content: string }, isStreaming = false) => {
     const roleConfig = getRoleUI(msg.speaker);
@@ -472,6 +590,29 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen bg-[#FAF9FB] text-neutral-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       
+      {/* Toast Notification Banner */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-4 right-4 z-50 bg-neutral-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-neutral-700/60 max-w-md"
+          >
+            <div className="p-1 bg-indigo-500/20 text-indigo-400 rounded-lg">
+              <Sparkles size={18} />
+            </div>
+            <p className="text-xs font-medium text-neutral-100 flex-1">{notification}</p>
+            <button 
+              onClick={() => setNotification(null)}
+              className="text-neutral-400 hover:text-white transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
       {/* Sleek Minimalist Glass Header */}
       <header className="bg-white/90 backdrop-blur-md border-b border-neutral-200/80 py-3.5 px-4 sm:px-6 flex items-center justify-between z-20 sticky top-0 shadow-xs">
         <div className="flex items-center gap-3">
@@ -481,8 +622,8 @@ export default function App() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-bold text-base sm:text-lg text-neutral-900 tracking-tight">Brainstorm Studio</h1>
-              <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200/60">
-                AI Panel
+              <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200/60 truncate max-w-[200px] sm:max-w-xs">
+                {room?.niche || 'AI Panel'}
               </span>
             </div>
             <p className="text-xs text-neutral-500 font-medium flex items-center gap-1.5 mt-0.5">
@@ -541,12 +682,12 @@ export default function App() {
 
           <div className="flex items-center gap-1.5 sm:gap-2 border-l border-neutral-200/80 pl-2 sm:pl-4">
             <button
-              onClick={() => setIsManagePanelOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200/70 rounded-xl transition-colors border border-neutral-200/60"
-              title="Manage Characters & Roster"
+              onClick={() => setIsSeeMoreModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-all shadow-2xs"
+              title="Browse Full Character Library"
             >
-              <Sliders size={14} />
-              <span className="hidden sm:inline">Characters</span>
+              <Grid size={14} />
+              <span className="hidden sm:inline">Character Library</span>
             </button>
 
             <button
@@ -581,9 +722,9 @@ export default function App() {
 
       {/* Sub-header Active Character Strip when actively conversing */}
       {messages.length > 0 && (
-        <div className="bg-white/60 border-b border-neutral-200/60 px-4 py-2 flex items-center justify-between overflow-x-auto text-xs gap-3">
+        <div className="bg-white/80 border-b border-neutral-200/60 px-4 py-2 flex items-center justify-between overflow-x-auto text-xs gap-3">
           <div className="flex items-center gap-2 overflow-x-auto py-0.5">
-            <span className="text-neutral-400 font-semibold uppercase tracking-wider text-[10px] flex-shrink-0">Active Panel:</span>
+            <span className="text-neutral-400 font-semibold uppercase tracking-wider text-[10px] flex-shrink-0">Active Roster:</span>
             {activeRoster.map(id => {
               const conf = getRoleUI(id);
               return (
@@ -592,16 +733,16 @@ export default function App() {
                   onClick={() => toggleRoleSelection(id)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${conf.color} text-white shadow-2xs`}
                 >
-                  <span className="truncate max-w-[110px]">{conf.name}</span>
+                  <span className="truncate max-w-[120px]">{conf.name}</span>
                   <X size={12} className="hover:opacity-80" />
                 </button>
               );
             })}
             <button
-              onClick={() => setIsManagePanelOpen(true)}
+              onClick={() => setIsSeeMoreModalOpen(true)}
               className="flex items-center gap-1 px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200/80 text-neutral-700 rounded-full border border-neutral-200/80 font-medium transition-colors text-xs flex-shrink-0"
             >
-              <Plus size={12} /> Add Persona
+              <Plus size={12} /> Add Characters ({allRoleKeys.length})
             </button>
           </div>
         </div>
@@ -611,30 +752,30 @@ export default function App() {
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
         <div className="max-w-4xl mx-auto">
           
-          {/* INITIAL LOAD: CHARACTER SELECTION & CREATION HUB */}
+          {/* INITIAL LOAD: CHARACTER SELECTION HUB */}
           {messages.length === 0 && (
             <div className="space-y-8 my-4">
               
               {/* Hero Banner */}
               <div className="text-center max-w-xl mx-auto space-y-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold">
-                  <Sparkles size={14} /> Collaborative AI Brainstorming
+                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold">
+                  <Sparkles size={14} /> Multi-Agent AI Brainstorming
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight">
-                  Choose Your Specialist Characters
+                  Choose Your AI Characters
                 </h2>
-                <p className="text-sm text-neutral-500">
-                  Select characters to join your brainstorming room, or build custom personas with unique perspectives.
+                <p className="text-sm text-neutral-500 leading-relaxed">
+                  Select specialists to join your brainstorming panel. Toggle roles easily or open the full library to explore all options.
                 </p>
               </div>
 
-              {/* Character Controls Header */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              {/* Featured Characters Control Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-b border-neutral-200/60 pb-3">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider">
-                    Available Characters
+                  <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Users size={14} /> Featured Roster
                   </h3>
-                  <span className="px-2 py-0.5 bg-neutral-200/70 text-neutral-700 rounded-full text-xs font-semibold">
+                  <span className="px-2.5 py-0.5 bg-neutral-900 text-white rounded-full text-xs font-bold">
                     {activeRoster.length} / {allRoleKeys.length} Selected
                   </span>
                 </div>
@@ -653,19 +794,19 @@ export default function App() {
                     Clear
                   </button>
                   <button
-                    onClick={() => setIsCreateCharacterModalOpen(true)}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 px-3.5 py-1.5 rounded-xl transition-colors shadow-2xs"
+                    onClick={() => setIsSeeMoreModalOpen(true)}
+                    className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 px-3.5 py-1.5 rounded-xl transition-all shadow-2xs"
                   >
-                    <Plus size={14} /> Create Character
+                    <Grid size={14} /> See More Characters ({allRoleKeys.length})
                   </button>
                 </div>
               </div>
 
-              {/* Character Cards Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {/* Initial Load Featured Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                 
-                {/* Predefined Characters */}
-                {Object.entries(availableRoles).map(([id, role]) => {
+                {/* Render top featured/active roles first */}
+                {Object.entries(availableRoles).slice(0, 5).map(([id, role]) => {
                   const isSelected = activeRoster.includes(id);
                   const ui = getRoleUI(id);
                   const Icon = ui.icon;
@@ -674,110 +815,50 @@ export default function App() {
                     <div
                       key={id}
                       onClick={() => toggleRoleSelection(id)}
-                      className={`relative p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between group ${
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between group ${
                         isSelected 
                           ? 'bg-white border-neutral-900 ring-2 ring-neutral-900/10 shadow-sm' 
                           : 'bg-white/80 border-neutral-200/80 hover:border-neutral-300 hover:bg-white'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white ${ui.color} shadow-2xs`}>
-                            <Icon size={18} />
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white ${ui.color} shadow-2xs`}>
+                            <Icon size={16} />
                           </div>
-                          <div>
-                            <h4 className="font-bold text-neutral-900 text-sm tracking-tight">{role.display_name}</h4>
-                            <span className="text-[11px] font-mono text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-md">
-                              {role.model}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
-                          isSelected ? 'bg-neutral-900 text-white' : 'border border-neutral-300 group-hover:border-neutral-400'
-                        }`}>
-                          {isSelected && <Check size={12} strokeWidth={3} />}
-                        </div>
-                      </div>
-
-                      <p className="text-xs text-neutral-500 mt-3 line-clamp-2 leading-relaxed font-normal">
-                        {role.system_prompt}
-                      </p>
-                    </div>
-                  );
-                })}
-
-                {/* Custom User Characters */}
-                {Object.entries(customRoles).map(([id, role]) => {
-                  const isSelected = activeRoster.includes(id);
-                  const ui = getRoleUI(id);
-                  const Icon = ui.icon;
-
-                  return (
-                    <div
-                      key={id}
-                      onClick={() => toggleRoleSelection(id)}
-                      className={`relative p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between group ${
-                        isSelected 
-                          ? 'bg-white border-indigo-600 ring-2 ring-indigo-500/10 shadow-sm' 
-                          : 'bg-white/80 border-neutral-200/80 hover:border-neutral-300 hover:bg-white'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white ${ui.color} shadow-2xs`}>
-                            <Icon size={18} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <h4 className="font-bold text-neutral-900 text-sm tracking-tight">{role.display_name}</h4>
-                              <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded-full border border-indigo-100">
-                                Custom
-                              </span>
-                            </div>
-                            <span className="text-[11px] font-mono text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-md">
-                              {role.model}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteCustomCharacter(id);
-                            }}
-                            className="text-neutral-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Delete Character"
-                          >
-                            <Trash2 size={14} />
-                          </button>
                           <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
-                            isSelected ? 'bg-indigo-600 text-white' : 'border border-neutral-300 group-hover:border-neutral-400'
+                            isSelected ? 'bg-neutral-900 text-white' : 'border border-neutral-300 group-hover:border-neutral-400'
                           }`}>
                             {isSelected && <Check size={12} strokeWidth={3} />}
                           </div>
                         </div>
-                      </div>
 
-                      <p className="text-xs text-neutral-500 mt-3 line-clamp-2 leading-relaxed font-normal">
-                        {role.system_prompt}
-                      </p>
+                        <h4 className="font-bold text-neutral-900 text-sm tracking-tight">{role.display_name}</h4>
+                        <span className="inline-block text-[10px] font-semibold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-md mt-1">
+                          {role.category || ui.category}
+                        </span>
+                        
+                        <p className="text-xs text-neutral-500 mt-2.5 line-clamp-2 leading-relaxed font-normal">
+                          {role.system_prompt}
+                        </p>
+                      </div>
                     </div>
                   );
                 })}
 
-                {/* Create Character Trigger Card */}
+                {/* Big Prominent "See More Characters" Tile */}
                 <div
-                  onClick={() => setIsCreateCharacterModalOpen(true)}
-                  className="p-5 rounded-2xl border-2 border-dashed border-neutral-200 hover:border-neutral-400 bg-white/40 hover:bg-white cursor-pointer transition-all flex flex-col items-center justify-center text-center gap-2 min-h-[120px] group"
+                  onClick={() => setIsSeeMoreModalOpen(true)}
+                  className="p-5 rounded-2xl border-2 border-dashed border-indigo-200 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50/80 cursor-pointer transition-all flex flex-col items-center justify-center text-center gap-2 group min-h-[140px]"
                 >
-                  <div className="w-10 h-10 rounded-full bg-neutral-100 group-hover:bg-neutral-900 group-hover:text-white text-neutral-600 flex items-center justify-center transition-colors">
-                    <Plus size={20} />
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm">
+                    <Grid size={20} />
                   </div>
                   <div>
-                    <h4 className="font-bold text-neutral-900 text-sm">Create New Character</h4>
-                    <p className="text-xs text-neutral-400 mt-0.5">Build a persona with custom expertise & tone</p>
+                    <h4 className="font-bold text-neutral-900 text-sm flex items-center justify-center gap-1">
+                      See More Characters <ChevronRight size={16} className="text-indigo-600 group-hover:translate-x-1 transition-transform" />
+                    </h4>
+                    <p className="text-xs text-neutral-500 mt-0.5">Explore {allRoleKeys.length}+ specialist personas & custom roles</p>
                   </div>
                 </div>
 
@@ -787,7 +868,7 @@ export default function App() {
               <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <Compass size={14} /> Or Start With Preset Assemblies
+                    <Compass size={14} /> Quick Start Assemblies
                   </h4>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -824,17 +905,40 @@ export default function App() {
               </div>
 
               {/* Auto Generator Panel Option */}
-              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 shadow-2xs space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
-                    <Sparkles size={18} />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-neutral-900 text-sm">AI Persona Auto-Generator</h4>
-                    <p className="text-xs text-neutral-500">Describe a scenario and let AI assemble tailored specialist roles</p>
+              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 shadow-2xs space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                      <Sparkles size={18} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-neutral-900 text-sm">AI Persona Auto-Generator</h4>
+                      <p className="text-xs text-neutral-500">Describe a custom scenario or click a fun topic below to generate wild personas</p>
+                    </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
+
+                {/* Quick Suggestion Chips */}
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {[
+                    { label: '🚀 Galactic Council', prompt: 'A diplomatic council of alien ambassadors debating cosmic laws' },
+                    { label: '🏴‍☠️ Pirates vs Ninjas', prompt: 'A crew of buccaneer pirates and shadow ninjas negotiating a treaty' },
+                    { label: '🔮 Magic Academy', prompt: 'Archmages and alchemy professors reviewing a high-level spellcraft invention' },
+                    { label: '🍳 Wild Cooking Contest', prompt: 'Eccentric gourmet judges reviewing an otherworldly culinary dish' },
+                    { label: '🏛️ Ancient Senate', prompt: 'Senators and philosophers debating modern technology in ancient Rome' }
+                  ].map((chip, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleGenerateRoles(chip.prompt)}
+                      disabled={isGeneratingRoles}
+                      className="text-[11px] font-semibold bg-neutral-100 hover:bg-neutral-200/80 text-neutral-700 px-2.5 py-1 rounded-lg border border-neutral-200/60 transition-colors disabled:opacity-50"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 pt-1">
                   <input
                     type="text"
                     value={scenePrompt}
@@ -842,14 +946,14 @@ export default function App() {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleGenerateRoles();
                     }}
-                    placeholder="e.g. A team debating sustainable packaging materials..."
+                    placeholder="e.g. A team debating sustainable electric aviation or time travel paradoxes..."
                     className="flex-1 bg-neutral-50 border border-neutral-200 text-neutral-800 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                     disabled={isGeneratingRoles}
                   />
                   <button
-                    onClick={handleGenerateRoles}
+                    onClick={() => handleGenerateRoles()}
                     disabled={!scenePrompt.trim() || isGeneratingRoles}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-semibold text-xs transition-colors disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-semibold text-xs transition-colors disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap shadow-2xs"
                   >
                     {isGeneratingRoles ? (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -940,6 +1044,199 @@ export default function App() {
         </div>
       </div>
 
+      {/* SEE MORE CHARACTERS MODAL (BROAD CHARACTER LIBRARY) */}
+      <AnimatePresence>
+        {isSeeMoreModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/50 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-neutral-200/90 overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="p-5 border-b border-neutral-200/80 bg-neutral-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-neutral-900 text-white rounded-xl shadow-2xs">
+                      <Grid size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-extrabold text-neutral-900 tracking-tight">Character Library</h3>
+                      <p className="text-xs text-neutral-500 font-medium">
+                        {activeRoster.length} of {allRoleKeys.length} characters active in room
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setIsSeeMoreModalOpen(false);
+                      setIsCreateCharacterModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl transition-colors shadow-2xs"
+                  >
+                    <Plus size={14} /> Create Character
+                  </button>
+                  <button 
+                    onClick={() => setIsSeeMoreModalOpen(false)} 
+                    className="p-2 hover:bg-neutral-200/60 rounded-xl text-neutral-400 hover:text-neutral-700 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter & Search Bar */}
+              <div className="p-4 bg-white border-b border-neutral-200/60 space-y-3">
+                <div className="relative">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search characters by name, role, or expertise keywords..."
+                    className="w-full bg-neutral-50 border border-neutral-200/90 rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-800 transition-all"
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Category Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+                  {CATEGORIES.map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap transition-all text-xs ${
+                        selectedCategory === cat 
+                          ? 'bg-neutral-900 text-white shadow-2xs' 
+                          : 'bg-neutral-100 hover:bg-neutral-200/70 text-neutral-600'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Character Grid */}
+              <div className="flex-1 overflow-y-auto p-5 bg-[#FAF9FB]">
+                {filteredCharacters.length === 0 ? (
+                  <div className="py-12 text-center text-neutral-400 space-y-2">
+                    <Users size={32} className="mx-auto text-neutral-300" />
+                    <p className="text-sm font-semibold text-neutral-600">No characters found matching "{searchQuery}"</p>
+                    <p className="text-xs">Try searching for a different keyword or category.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                    {filteredCharacters.map(({ id, config, isCustom }) => {
+                      const isSelected = activeRoster.includes(id);
+                      const ui = getRoleUI(id);
+                      const Icon = ui.icon;
+
+                      return (
+                        <div
+                          key={id}
+                          onClick={() => toggleRoleSelection(id)}
+                          className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between group relative ${
+                            isSelected 
+                              ? 'bg-white border-neutral-900 ring-2 ring-neutral-900/10 shadow-sm' 
+                              : 'bg-white border-neutral-200/80 hover:border-neutral-300'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white ${ui.color} shadow-2xs`}>
+                                  <Icon size={16} />
+                                </div>
+                                {isCustom && (
+                                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.2 rounded-full">
+                                    Custom
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                {isCustom && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteCustomCharacter(id);
+                                    }}
+                                    className="p-1 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                    title="Delete Character"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                )}
+                                <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                                  isSelected ? 'bg-neutral-900 text-white' : 'border border-neutral-300 group-hover:border-neutral-400'
+                                }`}>
+                                  {isSelected && <Check size={12} strokeWidth={3} />}
+                                </div>
+                              </div>
+                            </div>
+
+                            <h4 className="font-bold text-neutral-900 text-sm tracking-tight">{config.display_name}</h4>
+                            
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-md">
+                                {config.category || ui.category}
+                              </span>
+                              <span className="text-[10px] font-mono text-neutral-400">
+                                {config.model}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-neutral-500 mt-2.5 line-clamp-3 leading-relaxed">
+                              {config.system_prompt}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-neutral-200/80 bg-white flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-neutral-600">
+                  <span>{activeRoster.length} active in panel</span>
+                  <button
+                    onClick={() => setActiveRoster(allRoleKeys)}
+                    className="text-neutral-500 hover:text-neutral-900 underline ml-2"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={() => setActiveRoster([])}
+                    className="text-neutral-500 hover:text-neutral-900 underline"
+                  >
+                    Clear All
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setIsSeeMoreModalOpen(false)}
+                  className="bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-colors shadow-2xs"
+                >
+                  Confirm Selection
+                </button>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* CREATE CUSTOM CHARACTER MODAL */}
       <AnimatePresence>
         {isCreateCharacterModalOpen && (
@@ -977,6 +1274,24 @@ export default function App() {
                     placeholder="e.g. Growth Strategist, Security Auditor, Steve Jobs Persona..."
                     className="w-full text-sm bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Category Domain
+                  </label>
+                  <select
+                    value={newCharacter.category}
+                    onChange={e => setNewCharacter({ ...newCharacter, category: e.target.value })}
+                    className="w-full text-xs bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 font-medium"
+                  >
+                    <option value="Strategy & Leadership">Strategy & Leadership</option>
+                    <option value="Engineering & Product">Engineering & Product</option>
+                    <option value="Creative & Design">Creative & Design</option>
+                    <option value="Marketing & Sales">Marketing & Sales</option>
+                    <option value="Finance & Risk">Finance & Risk</option>
+                    <option value="Custom">Custom</option>
+                  </select>
                 </div>
 
                 <div>
@@ -1041,159 +1356,7 @@ export default function App() {
                   disabled={!newCharacter.display_name.trim() || !newCharacter.system_prompt.trim()}
                   className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-2xs"
                 >
-                  <Plus size={14} /> Add to Room Roster
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* MANAGE CHARACTERS PANEL OVERLAY */}
-      <AnimatePresence>
-        {isManagePanelOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] border border-neutral-200"
-            >
-              <div className="flex items-center justify-between p-5 border-b border-neutral-100">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-neutral-100 text-neutral-800 rounded-lg">
-                    <Users size={18} />
-                  </div>
-                  <h3 className="text-base font-bold text-neutral-900">Manage Room Characters</h3>
-                </div>
-                <button 
-                  onClick={() => setIsManagePanelOpen(false)} 
-                  className="p-1.5 hover:bg-neutral-100 rounded-lg text-neutral-400 hover:text-neutral-700 transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="overflow-y-auto p-5 space-y-6 flex-1">
-                {/* Built-in Characters */}
-                <div>
-                  <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                    Built-In Personas
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {Object.entries(availableRoles).map(([id, role]) => {
-                      const isSelected = activeRoster.includes(id);
-                      const ui = getRoleUI(id);
-                      const Icon = ui.icon;
-
-                      return (
-                        <div
-                          key={id}
-                          onClick={() => toggleRoleSelection(id)}
-                          className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                            isSelected 
-                              ? 'bg-neutral-50 border-neutral-900 ring-1 ring-neutral-900/10' 
-                              : 'bg-white border-neutral-200/80 hover:border-neutral-300'
-                          }`}
-                        >
-                          <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-white ${ui.color}`}>
-                            <Icon size={16} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-xs text-neutral-900 truncate">{role.display_name}</span>
-                              <div className={`w-4 h-4 rounded-full flex items-center justify-center ${
-                                isSelected ? 'bg-neutral-900 text-white' : 'border border-neutral-300'
-                              }`}>
-                                {isSelected && <Check size={10} strokeWidth={3} />}
-                              </div>
-                            </div>
-                            <p className="text-[11px] text-neutral-500 line-clamp-1 mt-0.5">{role.system_prompt}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Custom User Personas */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
-                      Custom Personas ({Object.keys(customRoles).length})
-                    </h4>
-                    <button
-                      onClick={() => {
-                        setIsManagePanelOpen(false);
-                        setIsCreateCharacterModalOpen(true);
-                      }}
-                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
-                    >
-                      <Plus size={14} /> New Persona
-                    </button>
-                  </div>
-
-                  {Object.keys(customRoles).length === 0 ? (
-                    <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200/60 text-center text-xs text-neutral-400">
-                      No custom personas created yet. Click above to build your first custom character!
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {Object.entries(customRoles).map(([id, role]) => {
-                        const isSelected = activeRoster.includes(id);
-                        const ui = getRoleUI(id);
-                        const Icon = ui.icon;
-
-                        return (
-                          <div
-                            key={id}
-                            onClick={() => toggleRoleSelection(id)}
-                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                              isSelected 
-                                ? 'bg-indigo-50/50 border-indigo-600 ring-1 ring-indigo-500/10' 
-                                : 'bg-white border-neutral-200/80 hover:border-neutral-300'
-                            }`}
-                          >
-                            <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-white ${ui.color}`}>
-                              <Icon size={16} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="font-bold text-xs text-neutral-900 truncate">{role.display_name}</span>
-                                <div className="flex items-center gap-1.5">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteCustomCharacter(id);
-                                    }}
-                                    className="text-neutral-400 hover:text-rose-600 p-0.5"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                  <div className={`w-4 h-4 rounded-full flex items-center justify-center ${
-                                    isSelected ? 'bg-indigo-600 text-white' : 'border border-neutral-300'
-                                  }`}>
-                                    {isSelected && <Check size={10} strokeWidth={3} />}
-                                  </div>
-                                </div>
-                              </div>
-                              <p className="text-[11px] text-neutral-500 line-clamp-1 mt-0.5">{role.system_prompt}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-              </div>
-
-              <div className="p-4 border-t border-neutral-100 bg-neutral-50/50 flex justify-end">
-                <button 
-                  onClick={() => setIsManagePanelOpen(false)}
-                  className="bg-neutral-900 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-neutral-800 transition-colors"
-                >
-                  Done
+                  <Plus size={14} /> Add to Character Library
                 </button>
               </div>
             </motion.div>
